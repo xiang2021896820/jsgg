@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <rect width="800" height="600" fill="#f0f0f0" />
+  <path d="M200,400 L600,400 L550,300 L250,300 Z" fill="#757575" />
+  <rect x="250" y="300" width="300" height="100" fill="#616161" />
+  <circle cx="400" cy="350" r="50" fill="#424242" />
+  <rect x="350" y="200" width="100" height="100" fill="#9e9e9e" />
+  <text x="400" y="520" font-family="Arial" font-size="24" text-anchor="middle" fill="#333">汽车零部件3D展示案例</text>
+</svg>
