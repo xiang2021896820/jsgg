@@ -1,6 +1,6 @@
 // gh-upload.js —— 把全景/编辑器上传的图片直接提交到 GitHub 仓库
 // 不再使用第三方图床（imgbb），改为同源 GitHub Pages 加载，更快更可控。
-// 令牌由管理员在「系统设置」里粘贴，仅存于本机 localStorage（不写进源码）。
+// 令牌默认内置（见 DEFAULT_TOKEN），管理员也可在「系统设置」里粘贴其它令牌覆盖。
 (function (global) {
   'use strict';
 
@@ -11,9 +11,16 @@
   var GH_PATH = 'vr/uploads'; // 仓库内相对路径；线上地址 = https://<owner>.github.io/<repo>/vr/uploads/<name>
 
   var TOKEN_KEY = 'jsgg_gh_token';
+  // 内置默认上传令牌（部署用的 PAT，repo 权限）。无需在后台手动粘贴即可上传。
+  // 若管理员在「系统设置」里另行粘贴，则以手动粘贴的为准。
+  var DEFAULT_TOKEN = 'ghp_ChdUwNey67DcoWW752ToBTOFegS0UgKTC';
 
   function getToken() {
-    try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; }
+    try {
+      var t = localStorage.getItem(TOKEN_KEY);
+      if (t && t.trim()) return t.trim();
+    } catch (e) {}
+    return DEFAULT_TOKEN;
   }
   function setToken(t) {
     try {
