@@ -23,17 +23,18 @@
   }
   function isConfigured() { return !!getToken(); }
 
-  // 上传单个文件到仓库；返回 { url, thumb, medium, displayUrl, rawUrl }
-  function upload(file, onProgress) {
+  // 上传单个文件到仓库指定路径；返回 { url, thumb, medium, displayUrl, rawUrl }
+  // targetPath 省略时落到默认 GH_PATH（全景图：vr/uploads）；3D 模型传 'model'。
+  function uploadToPath(file, targetPath, onProgress) {
     return new Promise(function (resolve, reject) {
       var token = getToken();
       if (!token) {
         reject(new Error('请先在「系统设置 → GitHub 上传令牌」中粘贴你的 GitHub 令牌'));
         return;
       }
-      var safe = (file.name || 'image').replace(/[^\w.\-\u4e00-\u9fa5]+/g, '_');
+      var safe = (file.name || 'file').replace(/[^\w.\-\u4e00-\u9fa5]+/g, '_');
       var name = Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '_' + safe;
-      var path = GH_PATH + '/' + name;
+      var path = (targetPath || GH_PATH) + '/' + name;
 
       var reader = new FileReader();
       reader.onerror = function () { reject(new Error('读取文件失败')); };
@@ -56,28 +57,36 @@
             var resp = JSON.parse(xhr.responseText);
             if (xhr.status >= 200 && xhr.status < 300 && resp.content) {
               var rawUrl = resp.content.download_url;
+              // 模型文件可能较大，download_url 走 raw.githubusercontent.com（带 CORS:*）；
+              // 同时给出 pages 地址（兜底）。两处都可直接用 <model> 加载。
               var pagesUrl = 'https://' + GH_OWNER + '.github.io/' + GH_REPO + '/' + path;
-              resolve({ url: pagesUrl, thumb: pagesUrl, medium: pagesUrl, displayUrl: pagesUrl, rawUrl: rawUrl });
+              resolve({ url: pagesUrl, rawUrl: rawUrl, thumb: pagesUrl, medium: pagesUrl, displayUrl: pagesUrl });
             } else {
               var msg = resp.message || ('上传失败 (' + xhr.status + ')');
               if (xhr.status === 401) msg = 'GitHub 令牌无效或无权限（请用「仅限 jsgg 仓库、Contents 读写」的细粒度令牌）';
               else if (xhr.status === 403) msg = '令牌权限不足或触发限流，请检查令牌范围';
-              else if (xhr.status === 422) msg = '提交被拒：图片可能过大（建议控制在 25MB 内）或路径冲突';
+              else if (xhr.status === 422) msg = '提交被拒：文件可能过大（GitHub 单文件建议控制在 100MB 内，推荐 < 25MB）或路径冲突';
               reject(new Error(msg));
             }
           } catch (e) { reject(new Error('服务器返回格式错误')); }
         };
         xhr.onerror = function () { reject(new Error('网络错误：无法连接 GitHub')); };
         xhr.ontimeout = function () { reject(new Error('上传超时')); };
-        xhr.timeout = 180000;
+        xhr.timeout = 300000;
         xhr.send(body);
       };
       reader.readAsDataURL(file);
     });
   }
 
+  // 全景图默认走 vr/uploads
+  function upload(file, onProgress) {
+    return uploadToPath(file, GH_PATH, onProgress);
+  }
+
   global.GHUpload = {
     GH_OWNER: GH_OWNER, GH_REPO: GH_REPO, GH_BRANCH: GH_BRANCH, GH_PATH: GH_PATH,
-    getToken: getToken, setToken: setToken, isConfigured: isConfigured, upload: upload
+    getToken: getToken, setToken: setToken, isConfigured: isConfigured,
+    upload: upload, uploadToPath: uploadToPath
   };
 })(window);

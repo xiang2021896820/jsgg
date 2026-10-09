@@ -47,10 +47,10 @@
                     <input type="text" id="pub-category" placeholder="如：校门 / 展台 / 室内" autocomplete="off" list="pub-category-list">
                     <datalist id="pub-category-list"></datalist>
                 </label>
-                <label class="pub-field">托管 URL（可选，跨设备必填）
+                <label class="pub-field">托管 URL（可选，高级）
                     <input type="text" id="pub-url" placeholder="https://你的域名/model/模型名.glb" autocomplete="off">
                 </label>
-                <p class="publish-hint">不填 URL 则仅本机（管理员浏览器）可见。<br>跨设备查看请填写：把 .glb 放进项目 <code>model/</code> 目录重新部署后，地址即 <code>https://你的域名/model/模型名.glb</code>（与本站同源、公开、GitHub Pages 默认带 CORS 允许 *，无需额外配置）。也可用 Cloudflare R2 / jsDelivr 等公开桶，需开启 CORS 允许 *。</p>
+                <p class="publish-hint">未填 URL 时，系统会自动把 .glb 直传到 GitHub 仓库 <code>model/</code> 目录（同源 Pages、CORS:*），<b>任意设备都能打开</b>。<br>只有当你要用自己托管的对象存储（R2 / jsDelivr 等，需开启 CORS 允许 *）时，才需要在这里手动填 URL。若后台尚未配置 GitHub 上传令牌，请先到「系统设置 → GitHub 上传令牌」粘贴。</p>
                 <div class="publish-actions">
                     <button id="pub-btn" type="button" class="control-btn active">发布</button>
                     <span id="pub-status" class="publish-status"></span>
@@ -396,6 +396,8 @@
     <script src="js/GLTFLoader.js"></script>
     <!-- 模型作品集同步层（管理后台发布 / 首页轮播读取，与全景 data.js 同一思路） -->
     <script src="js/modelsync.js?v=20260924"></script>
+    <!-- GitHub 直传（全景图 / 3D 模型都走这里；令牌存 localStorage，不上源码） -->
+    <script src="vr/js/gh-upload.js?v=20261009"></script>
     <!-- 面重叠闪烁（z-fighting）治理：查看器 / 首页展示区 / 作品集页共用同一份 -->
     <script src="js/zfight.js?v=20260923"></script>
     <!-- 设置快照（发布时保存贴图/材质/光照）+ 贴图方向记忆策略 -->
@@ -718,38 +720,65 @@
                     return;
                 }
                 const name = (nameEl && nameEl.value || '').trim() || '未命名模型';
-                const url = (urlEl && urlEl.value || '').trim();
+                const manualUrl = (urlEl && urlEl.value || '').trim();
                 const category = (categoryEl && categoryEl.value || '').trim();
                 // 打开某作品后再次发布 → 沿用其 id（更新）；全新上传 → 生成新 id
                 const id = currentWorkId || ('m_' + Date.now().toString(36));
                 // 把当前面板上的贴图方向 / 材质 / 光照 / 显示开关一起存进作品，
                 // 下次打开这件作品时原样还原（否则一发布就退回上传时的默认值）
                 const settings = captureViewerSettings();
-                if (statusEl) statusEl.textContent = '发布中…';
+
+                // 真正的发布动作：finalUrl 为空则只存本机；有 URL 则跨设备可见。
+                function goPublish(finalUrl) {
+                    if (statusEl) statusEl.textContent = finalUrl ? '发布中…' : '保存到本机作品集中…';
+                    btn.disabled = true;
+                    window.ModelSync.publishModel({
+                        id: id,
+                        name: name,
+                        url: finalUrl,
+                        category: category,
+                        settings: settings,
+                        blob: lastUploadedBuffer,
+                        type: 'model/glb'
+                    }).then(function (rec) {
+                        btn.disabled = false;
+                        const withSettings = settings
+                            ? '（含设置：' + ViewerSettings.describe(settings) + '）'
+                            : '';
+                        if (statusEl) statusEl.textContent = (finalUrl
+                            ? '已发布（首页与访客均可跨设备打开）'
+                            : '已保存到本机作品集（首页仅本机可见，建议配置 GitHub 令牌以跨设备）') + withSettings;
+                        // 发布后跳到该作品页，形成「发布 → 预览」闭环
+                        setTimeout(function () {
+                            location.href = 'model-viewer.html?model=' + encodeURIComponent(rec.id);
+                        }, 900);
+                    }).catch(function (e) {
+                        btn.disabled = false;
+                        if (statusEl) statusEl.textContent = '发布失败：' + (e && e.message ? e.message : e);
+                    });
+                }
+
+                // 1) 管理员手填了 URL（高级用法，如自有 R2 / 对象存储）→ 直接用
+                if (manualUrl) { goPublish(manualUrl); return; }
+
+                // 2) 否则自动把 .glb 直传 GitHub 仓库 model/ 目录（同源 Pages、CORS:*），
+                //    这样任意设备打开都能加载，不再"仅本机可见"。
+                if (!window.GHUpload || !GHUpload.isConfigured()) {
+                    if (statusEl) statusEl.textContent = '未配置 GitHub 上传令牌：请先到后台「系统设置 → GitHub 上传令牌」粘贴令牌；或在此手动填写托管 URL。';
+                    return;
+                }
+                if (statusEl) statusEl.textContent = '正在把模型上传到 GitHub（用于跨设备托管）…';
                 btn.disabled = true;
-                window.ModelSync.publishModel({
-                    id: id,
-                    name: name,
-                    url: url,
-                    category: category,
-                    settings: settings,
-                    blob: lastUploadedBuffer,
-                    type: 'model/glb'
-                }).then(function (rec) {
-                    btn.disabled = false;
-                    const withSettings = settings
-                        ? '（含设置：' + ViewerSettings.describe(settings) + '）'
-                        : '';
-                    if (statusEl) statusEl.textContent = (url
-                        ? '已发布（首页与访客均可打开）'
-                        : '已保存到本机作品集（首页仅本机可见）') + withSettings;
-                    // 发布后跳到该作品页，形成「发布 → 预览」闭环
-                    setTimeout(function () {
-                        location.href = 'model-viewer.html?model=' + encodeURIComponent(rec.id);
-                    }, 900);
+                // lastUploadedBuffer 是 ArrayBuffer，包成 File 再上传（统一 .glb 扩展名）
+                var safeName = name.replace(/[^\w.\-\u4e00-\u9fa5]+/g, '_');
+                var uploadFile = new File([lastUploadedBuffer], safeName + '.glb', { type: 'model/gltf-binary' });
+                GHUpload.uploadToPath(uploadFile, 'model', function (p) {
+                    if (statusEl) statusEl.textContent = '正在上传模型到 GitHub… ' + p + '%';
+                }).then(function (r) {
+                    goPublish(r.url);
                 }).catch(function (e) {
                     btn.disabled = false;
-                    if (statusEl) statusEl.textContent = '发布失败：' + (e && e.message ? e.message : e);
+                    if (statusEl) statusEl.textContent = '自动上传失败：' + (e && e.message ? e.message : e) + '（可在上方手动填写托管 URL 后重试）';
                 });
             });
         }
