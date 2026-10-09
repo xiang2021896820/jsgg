@@ -76,44 +76,10 @@ async function eDbGetAllCats() {
   });
 }
 
-// ── 图床（imgbb）─────────────────────────────────────────
-const E_IMGBB_URL = 'https://api.imgbb.com/1/upload';
-let eImgbbKey = '';
-async function eGetImgbbKey() {
-  if (eImgbbKey) return eImgbbKey;
-  try {
-    const db = await eOpenDB();
-    const v = await new Promise((res) => {
-      const tx = db.transaction('settings', 'readonly');
-      const r = tx.objectStore('settings').get('imgbb_api_key');
-      r.onsuccess = () => res(r.result ? r.result.value : '');
-      r.onerror = () => res('');
-    });
-    if (v) { eImgbbKey = v; return v; }
-  } catch (e) {}
-  return '';
-}
-async function uploadToImgbb(file, onProgress) {
-  const apiKey = await eGetImgbbKey();
-  if (!apiKey) throw new Error('请先在管理后台配置图床 API Key');
-  const formData = new FormData();
-  formData.append('image', file);
-  formData.append('key', apiKey);
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', E_IMGBB_URL);
-    xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100)); };
-    xhr.onload = () => {
-      try {
-        const resp = JSON.parse(xhr.responseText);
-        if (resp.success && resp.data) resolve({ url: resp.data.url, thumb: resp.data.thumb?.url || resp.data.url });
-        else reject(new Error(resp.error?.message || '上传失败'));
-      } catch (e) { reject(new Error('服务器返回格式错误')); }
-    };
-    xhr.onerror = () => reject(new Error('网络错误'));
-    xhr.timeout = 120000;
-    xhr.send(formData);
-  });
+// ── 上传到 GitHub 仓库（与后台共用 GHUpload，同源 GitHub Pages 加载）──
+async function uploadToGithub(file, onProgress) {
+  if (!GHUpload.isConfigured()) throw new Error('请先在管理后台「系统设置 → GitHub 上传令牌」中配置令牌');
+  return GHUpload.upload(file, onProgress);
 }
 
 // ── 工具 ─────────────────────────────────────────────────
@@ -524,7 +490,7 @@ function renderMusicPanel() {
         <button class="et-btn" onclick="editorUploadMusic()">⬆️ 上传音乐</button>
         <button class="et-btn" onclick="editorPlayMusic()">▶ 试听</button>
       </div>
-      <div class="et-tip">支持 mp3 / m4a 直链。也可在管理后台「系统设置」配置图床后使用。</div>
+      <div class="et-tip">支持 mp3 / m4a 直链。也可在管理后台「系统设置」配置 GitHub 上传令牌后使用。</div>
     </div>`;
 }
 function editorUploadMusic() {
@@ -534,7 +500,7 @@ function editorUploadMusic() {
     const f = e.target.files[0]; if (!f) return;
     showToast('正在上传音乐...');
     try {
-      const r = await uploadToImgbb(f);
+      const r = await uploadToGithub(f);
       const el = $('etMusicUrl');
       if (el) { el.value = r.url; EditorState.dirty = true; }
       showToast('音乐已上传', 'success');
@@ -570,7 +536,7 @@ function editorUploadSandbox() {
     const f = e.target.files[0]; if (!f) return;
     showToast('正在上传...');
     try {
-      const r = await uploadToImgbb(f);
+      const r = await uploadToGithub(f);
       const el = $('etSandboxImg'); if (el) { el.value = r.url; EditorState.dirty = true; }
       showToast('平面图已上传', 'success');
     } catch (err) { showToast('上传失败：' + err.message, 'error'); }
@@ -650,7 +616,7 @@ function editorReplaceScene(i) {
     const f = e.target.files[0]; if (!f) return;
     showToast('正在上传替换图片...');
     try {
-      const r = await uploadToImgbb(f);
+      const r = await uploadToGithub(f);
       EditorState.scenes[i] = { ...EditorState.scenes[i], panorama: r.url, thumb: r.thumb || r.url };
       EditorState.dirty = true; renderSceneStrip(); loadSceneToViewer(i);
       showToast('场景图片已替换', 'success');
@@ -673,7 +639,7 @@ function editorAddScene() {
     showToast('正在上传新场景...');
     try {
       for (const f of files) {
-        const r = await uploadToImgbb(f);
+        const r = await uploadToGithub(f);
         EditorState.scenes.push({ id: 's_' + genId(), title: '新场景', panorama: r.url, thumb: r.thumb || r.url, hotspots: [] });
       }
       EditorState.dirty = true; renderSceneStrip();

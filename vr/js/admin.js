@@ -1,6 +1,6 @@
 // ============================================================
 //  全景VR展示平台 - 管理后台逻辑 (admin.js)
-//  支持：密码保护、作品管理、访客记录、黑名单、imgbb IndexedDB存储
+//  支持：密码保护、作品管理、访客记录、黑名单、GitHub 仓库图片存储
 // ============================================================
 
 // ── 分享链接基础URL ─────────────────────────────────────
@@ -141,29 +141,10 @@ async function dbSetSetting(key, value) {
   return dbPut(STORE_SETTINGS, { key, value });
 }
 
-// ── imgbb 图床配置（改用 IndexedDB）──────────────────────
-const IMGBB_UPLOAD_URL = 'https://api.imgbb.com/1/upload';
-let imgbbApiKey = '';
-
-async function getImgbbKey() {
-  if (imgbbApiKey) return imgbbApiKey;
-  // 先从 IndexedDB 读
-  var key = await dbGetSetting('imgbb_api_key');
-  if (key) { imgbbApiKey = key; return key; }
-  // 兼容：从旧 localStorage 迁移
-  key = localStorage.getItem('vr_imgbb_key') || '';
-  if (key) {
-    await dbSetSetting('imgbb_api_key', key);
-    imgbbApiKey = key;
-    localStorage.removeItem('vr_imgbb_key');
-  }
-  return key;
-}
-
-async function setImgbbKey(key) {
-  imgbbApiKey = key;
-  await dbSetSetting('imgbb_api_key', key);
-}
+// ── GitHub 上传配置（图片直接提交到仓库，同源 GitHub Pages 加载，免图床加速）──
+// 令牌由管理员在「系统设置」中粘贴，存于本机 localStorage（不写进源码）。
+async function getGithubToken() { return GHUpload.getToken(); }
+async function setGithubToken(t) { GHUpload.setToken(t); }
 
 // ── 工具函数 ──────────────────────────────────────────────
 function showToast(msg, type = '') {
@@ -999,26 +980,9 @@ function renderTags() {
   ).join('');
 }
 
-async function uploadToImgbb(file, onProgress) {
-  const apiKey = await getImgbbKey();
-  if (!apiKey) throw new Error('请先配置图床 API Key');
-  const formData = new FormData();
-  formData.append('image', file); formData.append('key', apiKey);
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', IMGBB_UPLOAD_URL);
-    xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100)); };
-    xhr.onload = () => {
-      try {
-        const resp = JSON.parse(xhr.responseText);
-        if (resp.success && resp.data) resolve({ url: resp.data.url, thumb: resp.data.thumb?.url || resp.data.url, medium: resp.data.medium?.url || resp.data.url, displayUrl: resp.data.display_url || resp.data.url });
-        else reject(new Error(resp.error?.message || '上传失败'));
-      } catch (e) { reject(new Error('服务器返回格式错误')); }
-    };
-    xhr.onerror = () => reject(new Error('网络错误'));
-    xhr.ontimeout = () => reject(new Error('上传超时'));
-    xhr.timeout = 120000; xhr.send(formData);
-  });
+async function uploadToGithub(file, onProgress) {
+  if (!GHUpload.isConfigured()) throw new Error('请先在「系统设置 → GitHub 上传令牌」中配置令牌');
+  return GHUpload.upload(file, onProgress);
 }
 
 async function submitWork() {
@@ -1033,8 +997,8 @@ async function submitWork() {
   if (!category) { showToast('请选择分类', 'error'); return; }
   if (State.selectedFiles.length === 0) { showToast('请选择图片', 'error'); return; }
   if (!agree) { showToast('请先同意用户协议', 'error'); return; }
-  const apiKey = await getImgbbKey();
-  if (!apiKey) { showToast('请先配置图床 API Key', 'error'); return; }
+  const apiKey = await getGithubToken();
+  if (!apiKey) { showToast('请先在系统设置配置 GitHub 上传令牌', 'error'); return; }
 
   State.isUploading = true;
   const btn = document.querySelector('#pageUpload .btn-full');
@@ -1053,7 +1017,7 @@ async function submitWork() {
       if (tipEl) tipEl.textContent = `正在上传场景 ${i + 1}/${State.selectedFiles.length}...`;
       const pct = Math.round((i / State.selectedFiles.length) * 100);
       if (bar) bar.style.width = pct + '%';
-      const result = await uploadToImgbb(State.selectedFiles[i], (p) => {
+      const result = await uploadToGithub(State.selectedFiles[i], (p) => {
         const totalPct = Math.round(((i + p / 100) / State.selectedFiles.length) * 100);
         if (bar) bar.style.width = totalPct + '%';
       });
@@ -1093,12 +1057,12 @@ function resetUploadForm() {
   const agreeEl = document.getElementById('agreeCheck'); if (agreeEl) agreeEl.checked = false;
   State.tags = []; renderTags();
   const progressEl = document.getElementById('uploadProgress'); if (progressEl) progressEl.style.display = 'none';
-  const tipEl = document.getElementById('uploadTip'); if (tipEl) tipEl.textContent = '作品上传到图床后可在线分享';
+  const tipEl = document.getElementById('uploadTip'); if (tipEl) tipEl.textContent = '作品图片上传到 GitHub 仓库，同源加载更快（约 1–2 分钟后全站生效）';
   const statusEl = document.getElementById('uploadStatus'); if (statusEl) statusEl.style.display = 'none';
 }
 
 function showImgbbConfig() {
-  getImgbbKey().then(key => {
+  getGithubToken().then(key => {
     const input = document.getElementById('imgbbKeyInput');
     if (input) input.value = key || '';
     document.getElementById('imgbbConfigModal')?.classList.add('open');
@@ -1109,10 +1073,10 @@ function closeImgbbConfig() { document.getElementById('imgbbConfigModal')?.class
 async function saveImgbbConfig() {
   const input = document.getElementById('imgbbKeyInput');
   const key = input?.value.trim();
-  if (!key) { showToast('请输入 API Key', 'error'); return; }
-  await setImgbbKey(key);
+  if (!key) { showToast('请输入 GitHub 上传令牌', 'error'); return; }
+  await setGithubToken(key);
   closeImgbbConfig();
-  showToast('✅ 图床配置已保存', 'success');
+  showToast('✅ GitHub 上传配置已保存', 'success');
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1181,7 +1145,7 @@ function replaceEditCover() {
     var file = e.target.files[0]; if (!file) return;
     showToast('正在上传封面...');
     try {
-      var result = await uploadToImgbb(file);
+      var result = await uploadToGithub(file);
       var preview = document.getElementById('editCoverPreview');
       if (preview) { preview.src = result.thumb || result.url; preview.style.display = ''; }
       State._editNewCover = result.thumb || result.url;
@@ -1198,7 +1162,7 @@ function replaceEditLogo() {
     var file = e.target.files[0]; if (!file) return;
     showToast('正在上传Logo...');
     try {
-      var result = await uploadToImgbb(file);
+      var result = await uploadToGithub(file);
       var preview = document.getElementById('editLogoPreview');
       if (preview) { preview.src = result.url; preview.style.display = ''; }
       State._editNewLogo = result.url;
@@ -1424,7 +1388,7 @@ function replaceEditScene(idx) {
     const file = e.target.files[0]; if (!file) return;
     showToast('正在上传替换图片...');
     try {
-      const result = await uploadToImgbb(file);
+      const result = await uploadToGithub(file);
       State.editScenes[idx] = { ...State.editScenes[idx], panorama: result.url, thumb: result.thumb || result.url };
       renderEditScenes(); showToast('场景图片已替换', 'success');
     } catch (err) { showToast('替换失败', 'error'); }
@@ -1439,7 +1403,7 @@ function addNewScene() {
     showToast('正在上传新场景...');
     try {
       for (const file of files) {
-        const result = await uploadToImgbb(file);
+        const result = await uploadToGithub(file);
         State.editScenes.push({ id: 's_' + genId(), title: '新场景', panorama: result.url, thumb: result.thumb || result.url });
       }
       renderEditScenes(); showToast('新场景已添加', 'success');
@@ -1768,8 +1732,8 @@ async function clearVisitorLogs() {
 // ══════════════════════════════════════════════════════════
 
 async function renderSettingsPage() {
-  // 填充当前 imgbb key
-  var key = await getImgbbKey();
+  // 填充当前 GitHub 上传令牌
+  var key = await getGithubToken();
   var keyInput = document.getElementById('settingsImgbbKey');
   if (keyInput) keyInput.value = key || '';
 
@@ -1791,9 +1755,9 @@ async function renderSettingsPage() {
 async function saveImgbbFromSettings() {
   var input = document.getElementById('settingsImgbbKey');
   var key = input?.value.trim();
-  if (!key) { showToast('请输入 API Key', 'error'); return; }
-  await setImgbbKey(key);
-  showToast('✅ 图床配置已保存', 'success');
+  if (!key) { showToast('请输入 GitHub 上传令牌', 'error'); return; }
+  await setGithubToken(key);
+  showToast('✅ GitHub 上传配置已保存', 'success');
 }
 
 async function changeAdminPassword() {
@@ -1816,7 +1780,7 @@ async function exportAllData() {
       categories: await dbGetAllCats(),
       blacklist: await dbGetAllBlacklist(),
       visitorLogs: await dbGetAllVisitors(),
-      imgbbKey: await getImgbbKey(),
+      ghToken: await getGithubToken(),
     };
     var json = JSON.stringify(data, null, 2);
     var blob = new Blob([json], { type: 'application/json' });
@@ -1838,7 +1802,7 @@ async function importAllData(event) {
     if (data.works) { for (var w of data.works) await dbPutWork(w); }
     if (data.categories) { for (var c of data.categories) await dbPutCat(c); }
     if (data.blacklist) { for (var b of data.blacklist) await dbAddBlacklist(b); }
-    if (data.imgbbKey) await setImgbbKey(data.imgbbKey);
+    if (data.ghToken) await setGithubToken(data.ghToken);
     // 重新加载
     State.myWorks = await dbGetAllWorks();
     State.categories = await dbGetAllCats();
@@ -1910,12 +1874,6 @@ async function initAdminApp() {
       localStorage.removeItem('vr_my_works');
     }
   } catch (e) { /* ignore */ }
-
-  // 迁移 imgbb key 从 localStorage 到 IndexedDB
-  var oldKey = localStorage.getItem('vr_imgbb_key');
-  if (oldKey) {
-    try { await setImgbbKey(oldKey); localStorage.removeItem('vr_imgbb_key'); } catch (e) {}
-  }
 
   // 从远端把作品/分类合并进来 —— 换一台电脑（本机库为空）时，
   // 后台管理页也能看到之前上传过的作品，访客端作品广场也不再是空的

@@ -463,7 +463,7 @@ function spWrap(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
   ctx.fillText(line, x, ly);
   return ly + lineHeight;
 }
-// 图片加载：先试 CORS，失败再退回普通加载（imgbb 等图床不保证 CORS）。
+// 图片加载：先试 CORS，失败再退回普通加载（GitHub Pages 同源托管，CORS 友好）。
 function spLoadImage(url, timeout) {
   return new Promise(function (resolve, reject) {
     if (!url) { reject(new Error('no url')); return; }
