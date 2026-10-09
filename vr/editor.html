@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>作品编辑器 - 全景展馆</title>
+  <link rel="stylesheet" href="css/style.css?v=20260926">
+  <link rel="stylesheet" href="css/editor.css?v=20260926">
+  <script defer src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js" onerror="var s=document.createElement('script');s.src='https://unpkg.com/three@0.160.0/build/three.min.js';document.head.appendChild(s)"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js" onerror="var s=document.createElement('script');s.src='https://unpkg.com/lz-string@1.5.0/libs/lz-string.min.js';document.head.appendChild(s)"></script>
+</head>
+<body class="editor-body">
+
+<!-- ========== 顶部栏 ========== -->
+<header class="et-topbar">
+  <button class="et-back" onclick="editorExit()" title="返回工作台">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+    <span>工作台</span>
+  </button>
+  <div class="et-title-wrap">
+    <span class="et-title-icon">⬡</span>
+    <input id="etTitle" class="et-title-input" placeholder="未命名作品" oninput="onTitleInput()">
+    <span class="et-save-flag" id="etSaveFlag">未保存</span>
+  </div>
+  <div class="et-top-actions">
+    <button class="et-btn ghost" onclick="openPreview()">👁 预览</button>
+    <button class="et-btn" onclick="saveWork()">💾 保存</button>
+    <button class="et-btn primary" onclick="publishWork()">🚀 发布</button>
+  </div>
+</header>
+
+<div class="et-main">
+  <!-- ========== 左侧模块栏 ========== -->
+  <nav class="et-rail" id="etRail"></nav>
+
+  <!-- ========== 左侧属性面板 ========== -->
+  <aside class="et-panel" id="etPanel"></aside>
+
+  <!-- ========== 中央全景舞台 ========== -->
+  <main class="editor-stage viewer-container" id="editorStage">
+    <canvas id="vrCanvas"></canvas>
+    <div id="viewerOverlay" class="et-overlay">
+      <div class="viewer-loading" id="viewerLoading">
+        <div class="loading-spinner"></div>
+        <p>正在加载全景...</p>
+        <div class="loading-pct">0%</div>
+        <div class="loading-bar"><div class="loading-bar-fill" style="width:0%"></div></div>
+      </div>
+    </div>
+
+    <!-- 浮动工具栏 -->
+    <div class="et-stage-toolbar">
+      <div class="et-tool-group">
+        <button class="et-tool" id="btnViewMode" onclick="toggleViewMenu()">视角 ▾</button>
+        <div class="et-view-menu" id="etViewMenu">
+          <button onclick="setViewMode('normal');toggleViewMenu()">正常视角</button>
+          <button onclick="setViewMode('fisheye');toggleViewMenu()">鱼眼</button>
+          <button onclick="setViewMode('planet');toggleViewMenu()">小行星</button>
+          <button onclick="setViewMode('ball');toggleViewMenu()">水晶球</button>
+        </div>
+      </div>
+      <div class="et-tool-group">
+        <button class="et-tool" onclick="adjustFOV(8)" title="放大">＋</button>
+        <button class="et-tool" onclick="adjustFOV(-8)" title="缩小">－</button>
+      </div>
+      <button class="et-tool" id="btnAutoRotate" onclick="toggleAutoRotate()" title="自动旋转">⟳ 自动</button>
+      <button class="et-tool gyro" id="btnGyro" onclick="toggleGyro()" title="陀螺仪">◉ 陀螺仪</button>
+      <button class="et-tool" id="btnMusic" onclick="toggleMusic()" title="背景音乐">♪ 音乐</button>
+      <button class="et-tool" onclick="takeScreenshot()" title="截图">📷</button>
+      <button class="et-tool" onclick="toggleFullscreen()" title="全屏">⛶ 全屏</button>
+    </div>
+
+    <!-- 场景缩略图条 -->
+    <div class="et-scene-strip" id="sceneStrip"></div>
+
+    <!-- 提示 -->
+    <div class="et-stage-hint" id="stageHint"></div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script defer src="js/data.js?v=20260926"></script>
+<script defer src="js/viewer.js?v=20260926"></script>
+<script defer src="js/editor.js?v=20260926"></script>
+</body>
+</html>

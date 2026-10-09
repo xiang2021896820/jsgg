@@ -1,0 +1,67 @@
+{
+  "project_name": "今视广告线上展馆",
+  "version": "1.1.0",
+  "description": "基于 Web3D 技术的产品线上展馆，含官网首页与 3D 模型查看器",
+  "deploy_settings": {
+    "base_url": "/",
+    "static_files": [
+      "index.html",
+      "models.html",
+      "model-viewer.html",
+      "admin.html",
+      "css/",
+      "js/",
+      "images/",
+      "model/"
+    ],
+    "ignore_files": [
+      ".git",
+      "node_modules",
+      ".DS_Store",
+      "_legacy",
+      "deploy-config.json",
+      "DEPLOYMENT_GUIDE.md",
+      "README.md"
+    ],
+    "cache_control": {
+      "html_files": "no-cache",
+      "static_assets": "public, max-age=31536000"
+    }
+  },
+  "server_config": {
+    "recommended_servers": ["Nginx", "Apache", "GitHub Pages", "Netlify", "Vercel"],
+    "nginx_example": "server {\n  listen 80;\n  server_name yourdomain.com;\n  root /path/to/3D;\n  index index.html;\n\n  location / {\n    try_files $uri $uri/ =404;\n  }\n\n  # 静态资源缓存控制\n  location ~* \\.(jpg|jpeg|png|webp|svg|css|js|glb|gltf)$ {\n    expires 1y;\n    add_header Cache-Control \"public, max-age=31536000\";\n  }\n\n  gzip on;\n  gzip_comp_level 5;\n  gzip_min_length 256;\n  gzip_types text/css application/javascript application/json image/svg+xml;\n}",
+    "mime_types": {
+      ".glb": "model/gltf-binary",
+      ".gltf": "model/gltf+json",
+      ".webp": "image/webp"
+    }
+  },
+  "performance_optimization": {
+    "panorama_texture": "2048x1024 / 0.51MB（原为 8192x4096 / 18.09MB）",
+    "scripts_deferred": true,
+    "scene_lazy_init": true,
+    "image_lazy_loading": true,
+    "gzip_compression": true,
+    "http_cache": true
+  },
+  "deployment_steps": [
+    "1. 确认 index.html / model-viewer.html / css / js / images / model 均已上传，且 _legacy 不上传",
+    "2. 为 .glb / .gltf 配置正确的 MIME 类型，否则模型无法加载",
+    "3. 配置 Web 服务器指向项目根目录",
+    "4. 启用 GZIP 压缩与静态资源长缓存",
+    "5. 打开浏览器控制台确认无 JS 报错，3D 场景正常渲染",
+    "6. 在不同尺寸设备上测试响应式布局与移动端导航"
+  ],
+  "browser_compatibility": [
+    "Chrome 90+",
+    "Firefox 88+",
+    "Safari 14+",
+    "Edge 90+"
+  ],
+  "contact": {
+    "email": "info@3dconnecter.cn",
+    "phone": "400-123-4567",
+    "note": "联系方式请在 js/main.js 顶部的 SITE 对象中统一维护"
+  }
+}

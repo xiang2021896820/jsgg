@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <defs>
+    <linearGradient id="panoSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#dceafc" />
+      <stop offset="1" stop-color="#f5f9fd" />
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#panoSky)" />
+
+  <!-- 地面 -->
+  <rect y="382" width="800" height="218" fill="#e6eef7" />
+  <!-- 弧形地平线：暗示 720° 球面视角 -->
+  <path d="M0 382 Q400 334 800 382" fill="none" stroke="#1e88e5" stroke-width="3" opacity="0.55" />
+
+  <!-- 场景体块 -->
+  <rect x="150" y="252" width="122" height="130" rx="10" fill="#64b5f6" opacity="0.85" />
+  <rect x="300" y="198" width="152" height="184" rx="12" fill="#1e88e5" opacity="0.9" />
+  <rect x="480" y="272" width="132" height="110" rx="10" fill="#90caf9" opacity="0.85" />
+
+  <!-- 720° 徽标 -->
+  <circle cx="646" cy="146" r="50" fill="#ffffff" opacity="0.92" />
+  <circle cx="646" cy="146" r="50" fill="none" stroke="#1e88e5" stroke-width="3" />
+  <text x="646" y="152" font-family="Arial" font-size="30" font-weight="bold" text-anchor="middle" fill="#1e88e5">720°</text>
+
+  <!-- 视角指示箭头 -->
+  <path d="M60 330 h60" stroke="#1e88e5" stroke-width="3" stroke-linecap="round" opacity="0.6" />
+  <path d="M60 330 l16 -9 v18 z" fill="#1e88e5" opacity="0.6" />
+  <path d="M680 330 h60" stroke="#1e88e5" stroke-width="3" stroke-linecap="round" opacity="0.6" />
+  <path d="M740 330 l-16 -9 v18 z" fill="#1e88e5" opacity="0.6" />
+
+  <text x="400" y="520" font-family="Arial" font-size="24" text-anchor="middle" fill="#333">全景效果图案例</text>
+</svg>
