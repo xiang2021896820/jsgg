@@ -47,10 +47,7 @@
                     <input type="text" id="pub-category" placeholder="如：校门 / 展台 / 室内" autocomplete="off" list="pub-category-list">
                     <datalist id="pub-category-list"></datalist>
                 </label>
-                <label class="pub-field">托管 URL（可选，高级）
-                    <input type="text" id="pub-url" placeholder="https://你的域名/model/模型名.glb" autocomplete="off">
-                </label>
-                <p class="publish-hint">未填 URL 时，系统会自动把 .glb 直传到 GitHub 仓库 <code>model/</code> 目录（同源 Pages、CORS:*），<b>任意设备都能打开</b>。<br>只有当你要用自己托管的对象存储（R2 / jsDelivr 等，需开启 CORS 允许 *）时，才需要在这里手动填 URL。若后台尚未配置 GitHub 上传令牌，请先到「系统设置 → GitHub 上传令牌」粘贴。</p>
+                <p class="publish-hint">发布时系统会自动把 .glb 直传到 GitHub 仓库 <code>model/</code> 目录（同源 Pages、CORS:*），<b>任意设备都能打开</b>，无需手动填地址。<br>你当前调好的贴图 / 材质 / 光照 / 测量标注等参数会随作品一起保存，访客打开时就是你现在看到的样子。若后台尚未配置 GitHub 上传令牌，请先到「系统设置 → GitHub 上传令牌」粘贴。</p>
                 <div class="publish-actions">
                     <button id="pub-btn" type="button" class="control-btn active">发布</button>
                     <span id="pub-status" class="publish-status"></span>
@@ -397,11 +394,11 @@
     <!-- 模型作品集同步层（管理后台发布 / 首页轮播读取，与全景 data.js 同一思路） -->
     <script src="js/modelsync.js?v=20260924"></script>
     <!-- GitHub 直传（全景图 / 3D 模型都走这里；令牌存 localStorage，不上源码） -->
-    <script src="vr/js/gh-upload.js?v=20261009"></script>
+    <script src="vr/js/gh-upload.js?v=20260922"></script>
     <!-- 面重叠闪烁（z-fighting）治理：查看器 / 首页展示区 / 作品集页共用同一份 -->
     <script src="js/zfight.js?v=20260923"></script>
     <!-- 设置快照（发布时保存贴图/材质/光照）+ 贴图方向记忆策略 -->
-    <script src="js/viewer-settings.js?v=20260924"></script>
+    <script src="js/viewer-settings.js?v=20260922"></script>
     <script src="js/measure-tool.js?v=20260926"></script>
     
     <script>
@@ -420,6 +417,7 @@
         // 用 ?model=<id> 打开某作品时，它的设置快照先存在这里，
         // 等模型加载完（setupUvEditor 之后）再套用 —— 那时贴图/材质都已就绪。
         let pendingSettings = null;
+        let savedMeasureSettings = null;   // 打开作品时暂存的测量标注，resetMeasureForNewModel 之后才还原
         let isAdminMode = false;
         let textureFailures = [];   // 本次加载中读取失败的贴图 URL（诊断用）
         // 获取本地存储的模型信息，如果没有则使用默认模型
@@ -626,8 +624,24 @@
         
         function captureViewerSettings() {
             if (!window.ViewerSettings) return null;
+            // 测量标注的数据在 MeasureTool store 里（不在 DOM 控件），单独读出来一起存。
+            var measure = null;
+            if (window.MeasureTool && measureStore) {
+                measure = {
+                    displayUnit: measureStore.displayUnit(),
+                    modelUnit: measureStore.modelUnit(),
+                    recs: measureStore.list().map(function (r) {
+                        return {
+                            a: { x: r.a.x, y: r.a.y, z: r.a.z, kind: r.a.kind },
+                            b: { x: r.b.x, y: r.b.y, z: r.b.z, kind: r.b.kind },
+                            hidden: !!r.hidden
+                        };
+                    })
+                };
+            }
             return ViewerSettings.capture(document, {
-                pickedName: (pickedMaterial && pickedMaterial.name) ? pickedMaterial.name : ''
+                pickedName: (pickedMaterial && pickedMaterial.name) ? pickedMaterial.name : '',
+                measure: measure
             });
         }
         
@@ -685,13 +699,47 @@
             console.log('已套用作品设置：' + ViewerSettings.describe(st));
             return true;
         }
+
+        // 还原发布时保存的测量标注：先恢复显示单位 / 模型单位，再把每条线重新画出来。
+        // 必须在 resetMeasureForNewModel()（会 clearMeasures）之后调用。
+        function restoreMeasurements(smeas) {
+            if (!smeas || typeof smeas !== 'object') return;
+            if (!window.MeasureTool || !measureStore) return;
+            const MT = measureCore();
+
+            // 单位：先设好，后面 add 出来的标注才会按正确单位算 text / mm
+            if (MT && smeas.displayUnit) {
+                measureStore.setDisplayUnit(smeas.displayUnit);
+                const us = document.getElementById('measure-unit');
+                if (us) us.value = smeas.displayUnit;
+            }
+            if (MT && smeas.modelUnit) {
+                measureStore.setModelUnit(smeas.modelUnit);
+                const mus = document.getElementById('measure-model-unit');
+                if (mus) mus.value = smeas.modelUnit;
+                updateMeasureModelUnitNote();
+            }
+
+            const recs = Array.isArray(smeas.recs) ? smeas.recs : [];
+            recs.forEach(function (sr) {
+                if (!sr || !sr.a || !sr.b) return;
+                const a = { x: Number(sr.a.x), y: Number(sr.a.y), z: Number(sr.a.z), kind: sr.a.kind };
+                const b = { x: Number(sr.b.x), y: Number(sr.b.y), z: Number(sr.b.z), kind: sr.b.kind };
+                const rec = measureStore.add(a, b);
+                if (!rec) return;
+                if (sr.hidden) measureStore.setHidden(rec.id, true);
+                addMeasureVisual(rec);
+                applyMeasureVisibility(rec);
+            });
+            refreshMeasureList();
+            if (typeof syncMeasureLabels === 'function') syncMeasureLabels();
+        }
         
         // 管理后台「发布到作品集」：把当前模型写入 ModelSync（远端索引 + 本机 IndexedDB 兜底）
         function wirePublish() {
             const btn = document.getElementById('pub-btn');
             if (!btn || !window.ModelSync) return;
             const nameEl = document.getElementById('pub-name');
-            const urlEl = document.getElementById('pub-url');
             const categoryEl = document.getElementById('pub-category');
             const statusEl = document.getElementById('pub-status');
 
@@ -720,7 +768,6 @@
                     return;
                 }
                 const name = (nameEl && nameEl.value || '').trim() || '未命名模型';
-                const manualUrl = (urlEl && urlEl.value || '').trim();
                 const category = (categoryEl && categoryEl.value || '').trim();
                 // 打开某作品后再次发布 → 沿用其 id（更新）；全新上传 → 生成新 id
                 const id = currentWorkId || ('m_' + Date.now().toString(36));
@@ -758,13 +805,10 @@
                     });
                 }
 
-                // 1) 管理员手填了 URL（高级用法，如自有 R2 / 对象存储）→ 直接用
-                if (manualUrl) { goPublish(manualUrl); return; }
-
-                // 2) 否则自动把 .glb 直传 GitHub 仓库 model/ 目录（同源 Pages、CORS:*），
+                // 1) 自动把 .glb 直传 GitHub 仓库 model/ 目录（同源 Pages、CORS:*），
                 //    这样任意设备打开都能加载，不再"仅本机可见"。
                 if (!window.GHUpload || !GHUpload.isConfigured()) {
-                    if (statusEl) statusEl.textContent = '未配置 GitHub 上传令牌：请先到后台「系统设置 → GitHub 上传令牌」粘贴令牌；或在此手动填写托管 URL。';
+                    if (statusEl) statusEl.textContent = '未配置 GitHub 上传令牌：请先到后台「系统设置 → GitHub 上传令牌」粘贴令牌后再发布。';
                     return;
                 }
                 if (statusEl) statusEl.textContent = '正在把模型上传到 GitHub（用于跨设备托管）…';
@@ -778,7 +822,7 @@
                     goPublish(r.url);
                 }).catch(function (e) {
                     btn.disabled = false;
-                    if (statusEl) statusEl.textContent = '自动上传失败：' + (e && e.message ? e.message : e) + '（可在上方手动填写托管 URL 后重试）';
+                    if (statusEl) statusEl.textContent = '自动上传失败：' + (e && e.message ? e.message : e);
                 });
             });
         }
@@ -887,11 +931,19 @@
             // ★ 必须放在 setupUvEditor 之后 —— 那时贴图清单与材质快照都已就绪，
             //   早于它套用会被 setupUvEditor 里的 resetUvControls() 覆盖掉。
             if (pendingSettings) {
+                // 测量标注必须等 resetMeasureForNewModel() 清场之后再还原，
+                // 否则会被里面的 clearMeasures() 抹掉。先把它从 settings 里摘出来暂存。
+                if (pendingSettings.meas) savedMeasureSettings = pendingSettings.meas;
                 applyViewerSettings(pendingSettings);
                 pendingSettings = null;
             }
             // 换了模型：旧的测量标注坐标已失效，清掉并按新模型的尺寸重判「模型单位」
             resetMeasureForNewModel();
+            // 还原发布时保存的测量标注（单位 + 每条线）。必须在 reset 之后。
+            if (savedMeasureSettings) {
+                restoreMeasurements(savedMeasureSettings);
+                savedMeasureSettings = null;
+            }
             // 贴图加载情况汇报：文件里有没有贴图、有没有读失败/没解码的
             reportTextureSummary();
             

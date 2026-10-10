@@ -407,11 +407,6 @@
     state.textContent = '滚动到此处加载…';
     view.appendChild(state);
 
-    var badge = document.createElement('span');
-    badge.className = 'gallery-badge';
-    badge.textContent = entry._manifest ? '本地文件' : (entry.url ? '已托管' : '仅本机可见');
-    view.appendChild(badge);
-
     var body = document.createElement('div');
     body.className = 'model-card-body';
 
@@ -449,7 +444,7 @@
     grid.appendChild(el);
 
     var card = {
-      entry: entry, el: el, view: view, state: state, badge: badge,
+      entry: entry, el: el, view: view, state: state,
       renderer: null, scene: null, camera: null, group: null, model: null,
       visible: false, loaded: false, completed: false, dragging: false, resumeAt: 0
     };

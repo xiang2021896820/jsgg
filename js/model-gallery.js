@@ -66,11 +66,6 @@
     state.textContent = '排队等待…';
     viewport.appendChild(state);
 
-    var badge = document.createElement('span');
-    badge.className = 'gallery-badge';
-    badge.textContent = entry._manifest ? '本地文件' : (entry.url ? '已托管' : '仅本机可见');
-    viewport.appendChild(badge);
-
     var info = document.createElement('a');
     info.className = 'gallery-info';
     info.href = 'model-viewer.html?model=' + encodeURIComponent(entry.id);
@@ -108,7 +103,6 @@
       el: el,
       viewport: viewport,
       state: state,
-      badge: badge,
       visible: false,
       loaded: false,
       dragging: false,

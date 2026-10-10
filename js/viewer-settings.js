@@ -17,7 +17,7 @@
 (function (global) {
   'use strict';
 
-  var VERSION = 1;
+  var VERSION = 2;
 
   // 方向记忆的键带上版本：v1 时期被「重置」写坏过（存了全关），
   // 升版可以让历史脏值自然失效，不用去猜用户 localStorage 里是什么。
@@ -125,7 +125,8 @@
     uv: { rot: false, mirrorU: false, mirrorV: false, offsetU: 0, offsetV: 0, scaleU: 1, scaleV: 1 },
     mat: { color: '#ffffff', roughness: 1, metalness: 0, opacity: 1, all: true, picked: '' },
     light: { sun: true, intensity: 1, azimuth: 45, elevation: 45 },
-    view: { edges: false, shadow: true, ao: false, autorotate: false, zfight: true }
+    view: { edges: false, shadow: true, ao: false, autorotate: false, zfight: true },
+    meas: { displayUnit: 'mm', modelUnit: 'm', recs: [] }
   };
 
   function clamp(v, lo, hi, dflt) {
@@ -141,11 +142,40 @@
     return /^#[0-9a-fA-F]{6}$/.test(s) ? s.toLowerCase() : DEFAULTS.mat.color;
   }
 
+  // 测量单位归一：只认 mm / cm / m，其余回落 mm。
+  function normMeasureUnit(u) {
+    u = String(u == null ? '' : u).toLowerCase();
+    return (u === 'mm' || u === 'cm' || u === 'm') ? u : 'mm';
+  }
+
+  // 把一条保存的测量记录（a/b/hidden）收敛成可信结构，脏数据直接丢。
+  function sanitizeMeasureRec(r) {
+    if (!r || typeof r !== 'object') return null;
+    function pt(p) {
+      if (!p || typeof p !== 'object') return null;
+      var x = Number(p.x), y = Number(p.y), z = Number(p.z);
+      if (!isFinite(x) || !isFinite(y) || !isFinite(z)) return null;
+      return { x: x, y: y, z: z, kind: (p.kind === 'v' || p.kind === 'e') ? p.kind : 'free' };
+    }
+    var a = pt(r.a), b = pt(r.b);
+    if (!a || !b) return null;
+    return { a: a, b: b, hidden: !!r.hidden };
+  }
+
   // ---------- 从面板抓当前设置 ----------
   // ctx: { pickedName } —— 吸取到的材质名不在 DOM 里，由调用方传进来
   function capture(doc, ctx) {
     ctx = ctx || {};
     var picked = (ctx.pickedName || '').trim();
+    // 测量标注的数据不在 DOM 控件里，由调用方从 MeasureTool store 里读出来塞进 ctx.measure
+    var srcMeas = (ctx.measure && typeof ctx.measure === 'object') ? ctx.measure : null;
+    var recs = [];
+    if (srcMeas && Array.isArray(srcMeas.recs)) {
+      srcMeas.recs.forEach(function (r) {
+        var good = sanitizeMeasureRec(r);
+        if (good) recs.push(good);
+      });
+    }
     return {
       v: VERSION,
       uv: {
@@ -177,6 +207,11 @@
         ao: readBool(doc, 'ao-toggle', false),
         autorotate: readBool(doc, 'autorotate-toggle', false),
         zfight: readBool(doc, 'zfight-toggle', true)
+      },
+      meas: {
+        displayUnit: normMeasureUnit(srcMeas && srcMeas.displayUnit),
+        modelUnit: normMeasureUnit(srcMeas && srcMeas.modelUnit),
+        recs: recs
       }
     };
   }
@@ -215,7 +250,22 @@
         ao: !!((s.view || {}).ao),
         autorotate: !!((s.view || {}).autorotate),
         zfight: (s.view && s.view.zfight !== undefined) ? !!s.view.zfight : DEFAULTS.view.zfight
-      }
+      },
+      meas: (function () {
+        var sm = (s.meas || {});
+        var r = [];
+        if (Array.isArray(sm.recs)) {
+          sm.recs.forEach(function (x) {
+            var good = sanitizeMeasureRec(x);
+            if (good) r.push(good);
+          });
+        }
+        return {
+          displayUnit: normMeasureUnit(sm.displayUnit),
+          modelUnit: normMeasureUnit(sm.modelUnit),
+          recs: r
+        };
+      })()
     };
     return out;
   }
@@ -272,6 +322,12 @@
     setChk('autorotate-toggle', s.view.autorotate);
     setChk('zfight-toggle', s.view.zfight);
 
+    // 测量：显示单位 / 模型单位两个下拉框（标注坐标由调用方单独还原）
+    var us = el(doc, 'measure-unit');
+    if (us) us.value = s.meas.displayUnit;
+    var mus = el(doc, 'measure-model-unit');
+    if (mus) mus.value = s.meas.modelUnit;
+
     // 显示开关（边线/阴影/环境吸收/自动旋转/消闪）已经写进控件了，
     // 但「生效」要调用各自的函数：那几个都依赖 THREE / 当前模型，
     // 所以这里只回报"哪些需要调用"，由调用方执行。
@@ -279,9 +335,10 @@
     //   mat    → 调 applyMaterialEdit()
     //   light  → 调 applySunLight()
     //   autorotate → 需要同步自动旋转按钮
+    //   meas   → 需要按 settings.meas.recs 重新绘制每条标注（依赖 THREE）
     // 其余四个（边线/阴影/环境吸收/消闪）调用方**无条件**按其当前 checked 调一次即可，
     // 它们是幂等的 —— 别写成"只有 true 才调"，否则关不掉。
-    return { uv: true, mat: true, light: true, autorotate: s.view.autorotate };
+    return { uv: true, mat: true, light: true, autorotate: s.view.autorotate, meas: true };
   }
 
   // ---------- 把 UV 设置应用到一组贴图上 ----------
@@ -346,6 +403,9 @@
     else if (s.mat.picked) bits.push('材质：' + s.mat.picked);
     else bits.push('材质：未指定');
     bits.push('光照 ' + s.light.intensity.toFixed(1) + ' / ' + s.light.azimuth + '° / ' + s.light.elevation + '°');
+    if (s.meas && s.meas.recs && s.meas.recs.length) {
+      bits.push('测量 ' + s.meas.recs.length + ' 条（' + s.meas.displayUnit + ' / 模型单位 ' + s.meas.modelUnit + '）');
+    }
     return bits.join('，');
   }
 
