@@ -139,7 +139,7 @@
                             <label style="display: flex; align-items: center; justify-content: space-between;">
                                 <span>旋转 180&deg;</span>
                                 <label class="toggle-switch">
-                                    <input type="checkbox" id="uvrotation-toggle" checked>
+                                    <input type="checkbox" id="uvrotation-toggle">
                                     <span class="toggle-slider"></span>
                                 </label>
                             </label>
@@ -398,7 +398,7 @@
     <!-- 面重叠闪烁（z-fighting）治理：查看器 / 首页展示区 / 作品集页共用同一份 -->
     <script src="js/zfight.js?v=20260923"></script>
     <!-- 设置快照（发布时保存贴图/材质/光照）+ 贴图方向记忆策略 -->
-    <script src="js/viewer-settings.js?v=20260922"></script>
+    <script src="js/viewer-settings.js?v=20261013"></script>
     <script src="js/measure-tool.js?v=20260926"></script>
     
     <script>
@@ -644,7 +644,39 @@
                 measure: measure
             });
         }
-        
+
+        // ---------- 作者模式：在查看界面调好后自动回写作品设置 ----------
+        // 发布后作者会跳到 ?admin&model=<id> 看效果。此时若发现贴图/材质/光照还要微调，
+        // 调完应该就生效 —— 不用再回上传界面重新发布一次。
+        // 所以：作者（?admin）打开某件作品时，面板上任何改动延迟 1.2s 写回作品索引。
+        // 访客（不带 ?admin）的改动**不落盘**，下次打开仍回到上传时保存的状态。
+        let settingsRestoreInProgress = false;   // 还原快照期间抑制回写，避免自己覆盖自己
+        let persistSettingsTimer = null;
+
+        function persistWorkSettingsSoon() {
+            if (settingsRestoreInProgress) return;
+            if (!isAdminMode || !currentWorkId) return;
+            if (!window.ModelSync || !ModelSync.updateModelMeta) return;
+            if (!window.ViewerSettings) return;
+            clearTimeout(persistSettingsTimer);
+            persistSettingsTimer = setTimeout(function () {
+                const id = currentWorkId;
+                ModelSync.updateModelMeta(id, { settings: captureViewerSettings() })
+                    .then(function () { console.log('作品查看参数已随改动更新'); })
+                    .catch(function (e) { console.warn('作品设置回写失败', e && e.message ? e.message : e); });
+            }, 1200);
+        }
+
+        // 设置面板里任何控件被动过，就安排一次回写。
+        // 用事件委托（capture 阶段）一处覆盖贴图 / 材质 / 光照 / 显示全部控件；
+        // 程序化地写 .value / .checked 不会触发 input/change，所以还原快照时不会被误触。
+        function wireSettingsAutoPersist() {
+            const panel = document.querySelector('.light-controls');
+            if (!panel) return;
+            panel.addEventListener('input', persistWorkSettingsSoon, true);
+            panel.addEventListener('change', persistWorkSettingsSoon, true);
+        }
+
         function findMaterialByName(name) {
             if (!name || !currentModel) return null;
             let hit = null;
@@ -678,7 +710,17 @@
             
             const flags = ViewerSettings.apply(document, st);
             if (!flags) return false;
-            
+
+            // ⚠ 贴图作用范围必须跟着作品走：上传时若只调了第 n 张贴图，
+            //   而打开作品时默认落在「全部贴图」，同一组 UV 数值会作用在不同范围的
+            //   贴图上 —— 这正是「上传界面调好、查看界面又不对」的一个直接来源。
+            //   序号超出当前贴图数量时退回「全部」，避免一条都不生效。
+            let scope = st.uv.tex;
+            if (typeof scope === 'number' && scope >= uvTargets.length) scope = 'all';
+            uvSelectedIndex = (typeof scope === 'number') ? scope : -1;
+            const scopeSel = document.getElementById('uv-texture-select');
+            if (scopeSel) scopeSel.value = String(scope);
+
             if (flags.uv) applyUvEdit();
             if (flags.mat) applyMaterialEdit();
             // 这四个是幂等的：按控件当前值无条件调一次，否则"关"不掉
@@ -795,9 +837,11 @@
                         if (statusEl) statusEl.textContent = (finalUrl
                             ? '已发布（首页与访客均可跨设备打开）'
                             : '已保存到本机作品集（首页仅本机可见，建议配置 GitHub 令牌以跨设备）') + withSettings;
-                        // 发布后跳到该作品页，形成「发布 → 预览」闭环
+                        // 发布后跳到该作品页，形成「发布 → 预览」闭环。
+                        // ★ 带上 admin：作者在这页继续微调贴图/材质/光照时会直接回写到作品，
+                        //   不用再回上传界面重新发布一次。
                         setTimeout(function () {
-                            location.href = 'model-viewer.html?model=' + encodeURIComponent(rec.id);
+                            location.href = 'model-viewer.html?admin&model=' + encodeURIComponent(rec.id);
                         }, 900);
                     }).catch(function (e) {
                         btn.disabled = false;
@@ -934,7 +978,13 @@
                 // 测量标注必须等 resetMeasureForNewModel() 清场之后再还原，
                 // 否则会被里面的 clearMeasures() 抹掉。先把它从 settings 里摘出来暂存。
                 if (pendingSettings.meas) savedMeasureSettings = pendingSettings.meas;
-                applyViewerSettings(pendingSettings);
+                // 还原期间禁止「改动自动回写」，否则会把刚还原的默认值当成用户改动写回去
+                settingsRestoreInProgress = true;
+                try {
+                    applyViewerSettings(pendingSettings);
+                } finally {
+                    settingsRestoreInProgress = false;
+                }
                 pendingSettings = null;
             }
             // 换了模型：旧的测量标注坐标已失效，清掉并按新模型的尺寸重判「模型单位」
@@ -3451,8 +3501,12 @@
             setVal('uv-scale-v', 1);
             const mu = document.getElementById('uv-mirror-u');
             const mv = document.getElementById('uv-mirror-v');
+            // 旋转开关也一起归零：它原先在 HTML 里默认 checked，不归零的话
+            // 「重置」之后上传界面与查看界面的默认值会对不上。
+            const rt = document.getElementById('uvrotation-toggle');
             if (mu) mu.checked = false;
             if (mv) mv.checked = false;
+            if (rt) rt.checked = false;
             syncUvNumberInputs();
         }
         
@@ -4537,10 +4591,12 @@
             const entryParams = new URLSearchParams(location.search);
             const modelParam = entryParams.get('model');
             const adminParam = entryParams.has('admin');
+            // ★ admin 与 model 可以同时存在（发布后跳转就是这种）：
+            //   既能打开该作品，又保留作者身份以便继续微调并回写。
+            isAdminMode = !!adminParam;
 
             if (modelParam) {
                 // 打开具体作品（首页预览点击进来）
-                isAdminMode = false;
                 loadModelById(modelParam);
             } else if (adminParam) {
                 // 管理后台：显示上传区 + 发布面板
@@ -4568,6 +4624,8 @@
             // 设置光源控制
             setupLightControls();
             setupDisplayToggles();
+            // 作者模式下：面板上任何改动延迟回写到作品（访客不回写）
+            wireSettingsAutoPersist();
             
             // 开始动画循环
             animate();
