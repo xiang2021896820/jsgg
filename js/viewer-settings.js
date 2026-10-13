@@ -17,7 +17,7 @@
 (function (global) {
   'use strict';
 
-  var VERSION = 2;
+  var VERSION = 3;   // v3：uv 增加 tex（贴图作用范围），让上传界面与查看界面作用于同一批贴图
 
   // 方向记忆的键带上版本：v1 时期被「重置」写坏过（存了全关），
   // 升版可以让历史脏值自然失效，不用去猜用户 localStorage 里是什么。
@@ -122,7 +122,7 @@
   // ---------- 面板默认值（与 model-viewer.html 里的 HTML 默认一致）----------
   var DEFAULTS = {
     v: VERSION,
-    uv: { rot: false, mirrorU: false, mirrorV: false, offsetU: 0, offsetV: 0, scaleU: 1, scaleV: 1 },
+    uv: { rot: false, mirrorU: false, mirrorV: false, offsetU: 0, offsetV: 0, scaleU: 1, scaleV: 1, tex: 'all' },
     mat: { color: '#ffffff', roughness: 1, metalness: 0, opacity: 1, all: true, picked: '' },
     light: { sun: true, intensity: 1, azimuth: 45, elevation: 45 },
     view: { edges: false, shadow: true, ao: false, autorotate: false, zfight: true },
@@ -146,6 +146,15 @@
   function normMeasureUnit(u) {
     u = String(u == null ? '' : u).toLowerCase();
     return (u === 'mm' || u === 'cm' || u === 'm') ? u : 'mm';
+  }
+
+  // 贴图作用范围归一：'all'（全部贴图）或某个贴图序号。
+  // ⚠ 这个必须进快照：上传时若只调了第 2 张贴图，而打开作品时默认落到「全部贴图」，
+  //    同一组 UV 数值会作用在不同范围的贴图上 —— 两边显示自然对不上。
+  function normTexScope(v) {
+    if (v === 'all' || v === '' || v == null) return 'all';
+    var n = parseInt(v, 10);
+    return (isFinite(n) && n >= 0) ? n : 'all';
   }
 
   // 把一条保存的测量记录（a/b/hidden）收敛成可信结构，脏数据直接丢。
@@ -185,7 +194,8 @@
         offsetU: readNum(doc, 'uv-offset-u', 0),
         offsetV: readNum(doc, 'uv-offset-v', 0),
         scaleU: readNum(doc, 'uv-scale-u', 1),
-        scaleV: readNum(doc, 'uv-scale-v', 1)
+        scaleV: readNum(doc, 'uv-scale-v', 1),
+        tex: normTexScope(el(doc, 'uv-texture-select') ? el(doc, 'uv-texture-select').value : 'all')
       },
       mat: {
         color: normHex(el(doc, 'mat-color') ? el(doc, 'mat-color').value : ''),
@@ -228,7 +238,8 @@
         offsetU: clamp((s.uv || {}).offsetU, -1, 1, DEFAULTS.uv.offsetU),
         offsetV: clamp((s.uv || {}).offsetV, -1, 1, DEFAULTS.uv.offsetV),
         scaleU: clamp((s.uv || {}).scaleU, 0.1, 8, DEFAULTS.uv.scaleU),
-        scaleV: clamp((s.uv || {}).scaleV, 0.1, 8, DEFAULTS.uv.scaleV)
+        scaleV: clamp((s.uv || {}).scaleV, 0.1, 8, DEFAULTS.uv.scaleV),
+        tex: normTexScope((s.uv || {}).tex)
       },
       mat: {
         color: normHex((s.mat || {}).color),
@@ -301,6 +312,10 @@
     setPair('uv-offset-v', s.uv.offsetV, 2);
     setPair('uv-scale-u', s.uv.scaleU, 2);
     setPair('uv-scale-v', s.uv.scaleV, 2);
+    // 作用范围：'all' 或贴图序号。必须在 applyUvEdit() 之前设好，
+    // 否则同一组数值会落到不同范围的贴图上。
+    var ts = el(doc, 'uv-texture-select');
+    if (ts) ts.value = String(s.uv.tex);
 
     // 材质
     setVal('mat-color', s.mat.color);
@@ -353,6 +368,9 @@
     var mu = uv.mirrorU ? -1 : 1;
     var mv = uv.mirrorV ? -1 : 1;
     var rot = uv.rot ? Math.PI : 0;
+    // 作用范围与查看器保持一致：'all' = 全部贴图，数字 = 只作用于第 n 张
+    var scope = normTexScope(uv.tex);
+    var onlyIndex = (typeof scope === 'number') ? scope : -1;
     var RW = (typeof THREE !== 'undefined' && THREE && THREE.RepeatWrapping !== undefined)
       ? THREE.RepeatWrapping : null;
 
@@ -365,6 +383,7 @@
         var t = m.map;
         if (seen.indexOf(t.uuid) >= 0) return;
         seen.push(t.uuid);
+        if (onlyIndex >= 0 && (seen.length - 1) !== onlyIndex) return;
 
         if (!t.__baseRepeat) t.__baseRepeat = [t.repeat.x, t.repeat.y];
         if (!t.__baseOffset) t.__baseOffset = [t.offset.x, t.offset.y];
