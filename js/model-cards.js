@@ -126,7 +126,7 @@
 
     var renderer;
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
     } catch (e) {
       card.retryAt = performance.now() + 2500;
       setState(card, '显卡上下文不够用了，稍后自动重试…', false);
@@ -439,6 +439,14 @@
     body.appendChild(metaRow);
     body.appendChild(link);
 
+    // 分享按钮：生成分享卡片 / 海报 / 二维码（与全景作品一致的分享能力）
+    var shareBtn = document.createElement('button');
+    shareBtn.type = 'button';
+    shareBtn.className = 'model-card-share';
+    shareBtn.textContent = '↗ 分享';
+    shareBtn.title = '生成分享卡片 / 海报 / 二维码';
+    body.appendChild(shareBtn);
+
     el.appendChild(view);
     el.appendChild(body);
     grid.appendChild(el);
@@ -449,6 +457,16 @@
       visible: false, loaded: false, completed: false, dragging: false, resumeAt: 0
     };
     catBtn.addEventListener('click', function () { startEditCategory(card, catBtn); });
+
+    shareBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      // 卡片已加载时截一张实时渲染图作为分享缩略图；未加载则退用作品 thumb / 占位
+      var thumb = null;
+      if (card.renderer && card.renderer.domElement && window.ModelShare && ModelShare.captureThumb) {
+        thumb = ModelShare.captureThumb(card.renderer.domElement);
+      }
+      if (window.ModelShare) ModelShare.openById(entry.id, { thumb: thumb });
+    });
 
     cards.push(card);
     return card;

@@ -95,6 +95,30 @@ body {
     color: #fff;
 }
 
+/* 分享按钮（查看器头部，与返回按钮并列） */
+.viewer-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.viewer-share-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 18px;
+    border: 1px solid var(--v-brand);
+    border-radius: 6px;
+    background-color: #fff;
+    color: var(--v-brand);
+    font-size: 15px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background-color 0.25s ease, color 0.25s ease;
+}
+.viewer-share-btn:hover {
+    background-color: var(--v-brand);
+    color: #fff;
+}
+
 #model-viewer {
     position: relative;
     flex: 1 1 auto;

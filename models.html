@@ -11,6 +11,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png?v=20260926">
 
     <link rel="stylesheet" href="css/style.css?v=20260930">
+    <link rel="stylesheet" href="css/share.css?v=20261013">
 
     <!-- defer：按顺序执行。three → GLTFLoader → modelsync(数据源) → zfight(消闪) → model-cards(本页卡片网格) -->
     <script src="js/serve-check.js?v=20260922" defer></script>
@@ -20,7 +21,8 @@
     <script src="js/zfight.js?v=20260923" defer></script>
     <!-- 作品设置快照（发布时保存的贴图方向等）：卡片预览也要按作者保存的方向显示 -->
     <script src="js/viewer-settings.js?v=20261013" defer></script>
-    <script src="js/model-cards.js?v=20260924" defer></script>
+    <script src="js/model-cards.js?v=20261013" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" defer onerror="var s=document.createElement('script');s.src='https://unpkg.com/qrcodejs@1.0.0/qrcode.min.js';document.head.appendChild(s)"></script>
 </head>
 <body>
     <a class="skip-link" href="#gallery-section">跳到主要内容</a>
@@ -110,5 +112,49 @@
             </div>
         </div>
     </footer>
+
+    <!-- ========== 3D 模型分享弹层 ========== -->
+    <div class="share-overlay" id="modelShareOverlay">
+      <div class="share-modal">
+        <button class="close-share" onclick="ModelShare.close()">✕</button>
+        <div class="share-local-only" id="modelShareLocalOnly" style="display:none"></div>
+        <div class="share-work-card" id="modelShareWorkCard"></div>
+        <p class="share-url-label" id="modelShareHint">扫码在手机上打开，或复制链接分享</p>
+        <div class="share-url-box">
+          <input type="text" id="modelShareUrl" readonly>
+          <button onclick="ModelShare.copyUrl()">复制</button>
+        </div>
+        <div class="share-platforms">
+          <button class="sp-btn wechat" onclick="ModelShare.toWechat()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#07c160"><path d="M8.5 11.5a1 1 0 100-2 1 1 0 000 2zm7 0a1 1 0 100-2 1 1 0 000 2z"/><path d="M8.69 14.82a.5.5 0 11-.38-.92 6.5 6.5 0 017.38 0 .5.5 0 11-.38.92 5.5 5.5 0 00-6.62 0z"/><path d="M12 2C6.48 2 2 5.82 2 10.5c0 2.63 1.45 4.98 3.72 6.5L5 21l4.36-2.18C10.22 19.27 11.09 19.5 12 19.5c5.52 0 10-3.82 10-8.5S17.52 2 12 2z"/></svg>
+            微信分享
+          </button>
+          <button class="sp-btn link" onclick="ModelShare.copyUrl()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+            复制链接
+          </button>
+          <button class="sp-btn moments" onclick="ModelShare.toMoments()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#ff5722"><circle cx="12" cy="12" r="10"/><path fill="white" d="M12 6a2 2 0 100 4 2 2 0 000-4zm-3 8h6v2H9v-2z"/></svg>
+            朋友圈
+          </button>
+        </div>
+        <p>💡 点击微信/朋友圈按钮生成分享海报，长按保存后分享</p>
+      </div>
+    </div>
+
+    <!-- ========== 分享海报预览 ========== -->
+    <div class="share-overlay" id="modelPosterOverlay">
+      <div class="poster-modal">
+        <button class="close-share" onclick="ModelShare.closePoster()">✕</button>
+        <h3 style="margin-bottom:16px">分享海报</h3>
+        <div id="modelPosterPreview" style="max-height:65vh;overflow-y:auto"></div>
+        <div class="poster-actions">
+          <button class="sp-btn-download" onclick="ModelShare.downloadPoster()">📥 下载海报</button>
+          <button class="sp-btn-close2" onclick="ModelShare.closePoster()">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="js/model-share.js?v=20261013" defer></script>
 </body>
 </html>

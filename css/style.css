@@ -1839,6 +1839,26 @@ a.case-card:focus-visible {
     transform: translateX(3px);
 }
 
+.model-card-share {
+    display: block;
+    width: 100%;
+    margin-top: 12px;
+    padding: 9px 0;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+    background: var(--bg-alt);
+    color: var(--brand-dark);
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s var(--ease);
+}
+.model-card-share:hover {
+    background: var(--brand-soft);
+    border-color: rgba(30, 136, 229, 0.4);
+    color: var(--brand-darker);
+}
+
 @media (max-width: 992px) {
     .cards-toolbar {
         flex-direction: column;

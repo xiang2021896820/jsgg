@@ -1,0 +1,164 @@
+/* ============================================================
+   3D 模型作品 · 分享弹层 / 分享卡片 / 海报 样式
+   （与全景 vr/css 的 .swc-* 同版式，改用具体浅色色值，
+    两站点 models.html 与 model-viewer.html 共用，不依赖任一站点变量体系）
+   ============================================================ */
+
+/* ---------- 分享 / 海报 遮罩层 ---------- */
+.share-overlay {
+  position: fixed; inset: 0; z-index: 3000;
+  background: rgba(11, 26, 43, 0.55);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  display: none; align-items: center; justify-content: center;
+  padding: 16px;
+}
+.share-overlay.open { display: flex; }
+
+.share-modal {
+  background: #ffffff;
+  border: 1px solid #e3e8ee;
+  border-radius: 20px; padding: 32px 28px; width: min(400px, 92vw);
+  position: relative; text-align: center;
+  max-height: 92vh; overflow-y: auto;
+  box-shadow: 0 24px 60px rgba(16, 32, 48, 0.22);
+}
+.share-modal h3 {
+  font-size: 1.15rem; font-weight: 700; margin-bottom: 24px; letter-spacing: 0.5px;
+  color: #16202b;
+}
+
+.close-share {
+  position: absolute; top: 14px; right: 14px; width: 34px; height: 34px;
+  border-radius: 50%; background: #f5f7fa; color: #46586b;
+  display: flex; align-items: center; justify-content: center; font-size: 1.05rem;
+  transition: all 0.2s ease; border: 1px solid #e3e8ee; cursor: pointer;
+  z-index: 5;
+}
+.close-share:hover { background: #eef2f7; color: #16202b; }
+
+.share-url-label { font-size: 0.82rem; color: #6b7b8c; margin-bottom: 14px; }
+.share-url-box {
+  display: flex; align-items: center;
+  background: #f5f7fa; border: 1px solid #e3e8ee;
+  border-radius: 12px; overflow: hidden; margin-bottom: 22px;
+  padding: 3px;
+}
+.share-url-box input {
+  flex: 1; background: transparent; border: none;
+  padding: 10px 12px; color: #46586b; font-size: 0.78rem;
+  outline: none; min-width: 0;
+}
+.share-url-box button {
+  padding: 9px 18px; border-radius: 9px; border: none; cursor: pointer;
+  background: linear-gradient(135deg, #1e88e5, #1976d2);
+  color: #fff; font-size: 0.82rem; font-weight: 600;
+  transition: all 0.2s ease; flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(30, 136, 229, 0.35);
+}
+.share-url-box button:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(30, 136, 229, 0.45); }
+
+.share-platforms { display: flex; gap: 10px; justify-content: center; }
+.sp-btn {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 14px 8px; border-radius: 14px; cursor: pointer;
+  border: 1px solid #e3e8ee;
+  background: #f5f7fa;
+  color: #46586b; font-size: 0.75rem;
+  font-weight: 500; transition: all 0.2s ease;
+}
+.sp-btn svg { width: 22px; height: 22px; }
+.sp-btn:hover {
+  background: #eef2f7;
+  border-color: rgba(30, 136, 229, 0.4);
+  color: #16202b; transform: translateY(-2px);
+}
+.sp-btn.wechat:hover { color: #07c160; border-color: rgba(7, 193, 96, 0.45); background: rgba(7, 193, 96, 0.08); }
+.sp-btn.moments:hover { color: #ff5722; border-color: rgba(255, 87, 34, 0.45); background: rgba(255, 87, 34, 0.08); }
+.sp-btn.link:hover { color: #42a5f5; border-color: rgba(30, 136, 229, 0.45); background: rgba(30, 136, 229, 0.1); }
+
+.share-modal > p:last-child { font-size: 0.73rem; color: #6b7b8c; margin-top: 18px; line-height: 1.5; }
+
+/* 仅本机可见时的提示条 */
+.share-local-only {
+  font-size: 0.72rem; color: #b26a00; background: rgba(255, 179, 0, 0.12);
+  border: 1px solid rgba(255, 179, 0, 0.3); border-radius: 10px;
+  padding: 8px 12px; margin-bottom: 14px; line-height: 1.5;
+}
+
+/* ---------- 分享弹层里的作品卡片 ---------- */
+.share-work-card {
+  text-align: left;
+  margin-bottom: 20px;
+  border: 1px solid #e3e8ee;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 6px 18px rgba(16, 32, 48, 0.08);
+}
+/* 顶部：居中作品名 + 一条细线夹一枚小 LOGO（LOGO 只是点缀，15px 高） */
+.swc-head { padding: 15px 16px 0; text-align: center; }
+.swc-title {
+  font-size: 0.95rem; font-weight: 700; line-height: 1.4; letter-spacing: 0.2px;
+  color: #16202b;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.swc-rule { display: flex; align-items: center; gap: 10px; margin: 9px 0 13px; }
+.swc-rule i { flex: 1; height: 1px; background: #e3e8ee; }
+.swc-rule .swc-mark { height: 15px; width: auto; display: block; flex-shrink: 0; opacity: 0.92; }
+
+.swc-thumb { position: relative; width: 100%; aspect-ratio: 16/9; background: #f5f7fa; overflow: hidden; }
+.swc-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.swc-chip {
+  position: absolute; top: 10px;
+  padding: 3px 10px; border-radius: 20px;
+  font-size: 0.68rem; font-weight: 600; line-height: 1.5;
+}
+.swc-chip.model { left: 10px; background: rgba(30, 136, 229, 0.94); color: #fff; }
+
+/* 底部一行：左＝日期·分类 + 品牌小字；右＝二维码（向上压住缩略图右下角） */
+.swc-foot { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px 13px; }
+.swc-foot-left { flex: 1; min-width: 0; padding-top: 3px; }
+.swc-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 0.75rem; color: #6b7b8c; }
+.swc-date { white-space: nowrap; }
+.swc-cat {
+  white-space: nowrap; padding: 1px 8px; border-radius: 20px; font-size: 0.66rem;
+  background: rgba(30, 136, 229, 0.12);
+  border: 1px solid rgba(30, 136, 229, 0.2);
+  color: #1976d2;
+}
+.swc-tag { margin-top: 6px; font-size: 0.62rem; letter-spacing: 0.06em; color: #6b7b8c; opacity: 0.85; }
+
+/* 二维码：-48px 让它压住缩略图右下角。
+   ⚠ 必须 position + z-index：.swc-thumb 是 position:relative，定位元素默认画在普通流之上，
+      不加这两行二维码会被缩略图盖住。尺寸 140 显示（出图 280 保清晰）。 */
+.swc-qrbox { position: relative; z-index: 3; flex-shrink: 0; margin-top: -48px; text-align: center; }
+.swc-qr {
+  background: #fff; border-radius: 12px; padding: 5px;
+  border: 1px solid #e3e8ee;
+  box-shadow: 0 5px 16px rgba(16, 32, 48, 0.16);
+  line-height: 0;
+}
+.swc-qr canvas, .swc-qr img { display: block; border-radius: 6px; width: 140px !important; height: 140px !important; }
+.swc-qrcap { margin-top: 5px; font-size: 0.6rem; color: #6b7b8c; letter-spacing: 0.04em; }
+
+/* ---------- 海报预览弹窗 ---------- */
+.poster-modal {
+  background: #ffffff; border: 1px solid #e3e8ee;
+  border-radius: 20px; padding: 32px; width: min(440px, 90vw);
+  position: relative; text-align: center;
+  max-height: 92vh; overflow-y: auto;
+}
+.poster-modal img { max-width: 100%; border-radius: 12px; }
+.poster-modal .poster-actions { display: flex; gap: 12px; justify-content: center; margin-top: 16px; }
+.poster-modal .sp-btn-download, .poster-modal .sp-btn-close2 {
+  padding: 11px 22px; border-radius: 10px; cursor: pointer; font-size: 0.85rem; font-weight: 600;
+  border: none;
+}
+.poster-modal .sp-btn-download { background: linear-gradient(135deg, #1e88e5, #1976d2); color: #fff; box-shadow: 0 4px 12px rgba(30, 136, 229, 0.35); }
+.poster-modal .sp-btn-close2 { background: #f5f7fa; color: #46586b; border: 1px solid #e3e8ee; }
+.poster-modal .sp-btn-download:hover { transform: translateY(-1px); }
+.poster-modal .sp-btn-close2:hover { background: #eef2f7; }
+
+/* 仅在弹层内覆盖 card-act-btn 通用样式（若有冲突） */
+.share-modal .card-act-btn { display: none; }
