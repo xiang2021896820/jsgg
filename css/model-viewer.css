@@ -207,15 +207,36 @@ body {
     background-color: var(--v-brand-dark);
 }
 
-/* 上传进度条 */
+/* 模型加载进度浮层：独立覆盖在画布上方，不依赖上传区是否显示 */
 .upload-progress-container {
     display: none;
-    position: relative;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 30;
     width: 80%;
-    max-width: 600px;
-    height: 20px;
-    margin-top: 20px;
-    border-radius: 10px;
+    max-width: 440px;
+    padding: 22px 24px;
+    border-radius: 14px;
+    background-color: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 10px 34px rgba(20, 32, 43, 0.20);
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.upload-progress-title {
+    margin-bottom: 14px;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--v-ink);
+}
+
+.upload-progress-track {
+    position: relative;
+    width: 100%;
+    height: 10px;
+    border-radius: 6px;
     background-color: #e2e7ee;
     overflow: hidden;
 }
@@ -223,20 +244,20 @@ body {
 .upload-progress-bar {
     height: 100%;
     width: 0;
-    border-radius: 10px;
+    border-radius: 6px;
     background-color: var(--v-brand);
     transition: width 0.3s ease;
 }
 
-.upload-progress-text {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 12px;
-    font-weight: 500;
-    color: #33404e;
-    white-space: nowrap;
+/* 不确定进度（解析 / 读取中，无字节进度事件）：循环滑动动画 */
+.upload-progress-container.is-indeterminate .upload-progress-bar {
+    width: 35%;
+    animation: mprog-indet 1.1s ease-in-out infinite;
+}
+
+@keyframes mprog-indet {
+    0%   { transform: translateX(-120%); }
+    100% { transform: translateX(320%); }
 }
 
 /* ---------- 底部控制条 ---------- */
@@ -431,7 +452,7 @@ input[type="range"] {
     }
 
     .upload-progress-container {
-        width: 100%;
+        width: 90%;
     }
 
     .viewer-controls {

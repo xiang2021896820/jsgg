@@ -8,7 +8,7 @@
     <link rel="icon" href="images/favicon.ico?v=20260926">
     <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32x32.png?v=20260926">
     <link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png?v=20260926">
-    <link rel="stylesheet" href="css/model-viewer.css?v=20260926">
+    <link rel="stylesheet" href="css/model-viewer.css?v=20261014">
     <link rel="stylesheet" href="css/share.css?v=20261013">
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" defer onerror="var s=document.createElement('script');s.src='https://unpkg.com/qrcodejs@1.0.0/qrcode.min.js';document.head.appendChild(s)"></script>
 </head>
@@ -23,8 +23,8 @@
         </header>
         
         <div id="model-viewer">
-            <!-- 文件上传区域 -->
-            <div id="upload-area">
+            <!-- 文件上传区域：默认隐藏，仅管理后台 / 点击「上传新模型」时显示（避免进入查看界面时一闪而过） -->
+            <div id="upload-area" style="display:none">
                 <input type="file" id="model-upload" accept=".gltf,.glb,.skp" hidden>
                 <div id="drop-zone">
                     <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -36,9 +36,13 @@
                     <p class="drop-hint">支持 SketchUp (.skp) / .gltf / .glb 格式</p>
                     <button id="browse-btn" type="button">浏览文件</button>
                 </div>
-                <div id="upload-progress-container" class="upload-progress-container">
-                    <div id="upload-progress-bar" class="upload-progress-bar"></div>
-                    <span id="upload-progress-text" class="upload-progress-text">0%</span>
+            </div>
+
+            <!-- 模型加载进度浮层：独立于上传区，覆盖在画布上方（修复「加载中无进度显示」） -->
+            <div id="upload-progress-container" class="upload-progress-container">
+                <div class="upload-progress-title" id="upload-progress-text">正在加载模型…</div>
+                <div class="upload-progress-track">
+                    <div class="upload-progress-bar" id="upload-progress-bar"></div>
                 </div>
             </div>
 
@@ -534,6 +538,8 @@
             if (progressContainer) {
                 progressContainer.style.display = 'block';
                 progressBar.style.width = '0%';
+                // skp 是解析流程（无字节进度事件）→ 不确定动画；glb/gltf 走 URL 下载会有真实进度
+                setProgressIndeterminate(modelType === 'skp');
                 progressText.textContent = '开始加载...';
             }
             
@@ -576,7 +582,7 @@
             if (uploadArea) uploadArea.style.display = 'none';   // 打开具体作品时隐藏上传
             const pc = document.getElementById('upload-progress-container');
             const status = document.getElementById('upload-progress-text');
-            if (pc) { pc.style.display = 'block'; if (status) status.textContent = '正在读取作品…'; }
+            if (pc) { pc.style.display = 'block'; setProgressIndeterminate(true); if (status) status.textContent = '正在读取作品…'; }
             currentWorkId = id;
             pendingSettings = null;   // 先清空，拿到索引条目后再挂上
 
@@ -627,7 +633,9 @@
         // 直接解析已拿到内存中的二进制（本机 IndexedDB / 上传文件）
         function loadFromBuffer(buf) {
             const pc = document.getElementById('upload-progress-container');
-            if (pc) pc.style.display = 'block';
+            const status = document.getElementById('upload-progress-text');
+            if (pc) { pc.style.display = 'block'; setProgressIndeterminate(true); }
+            if (status) status.textContent = '正在解析模型…';
             new THREE.GLTFLoader().parse(buf, '', function (gltf) {
                 handleGltfLoaded(gltf);
             }, function (err) {
@@ -898,40 +906,52 @@
         }
 
         // ================= 模型加载回调（glTF 与 SketchUp 两条链路共用） =================
-        
+
+        // 进度条两种状态：
+        //  - 确定性：从 URL 下载时有 xhr 字节进度，用 width 百分比；
+        //  - 不确定：从本机 IndexedDB 二进制解析 / 读取索引时，没有进度事件，
+        //    改用循环滑动动画，至少让用户知道「还在加载、没卡死」。
+        function setProgressIndeterminate(on) {
+            const c = document.getElementById('upload-progress-container');
+            if (c) c.classList.toggle('is-indeterminate', !!on);
+        }
+
         function reportDownloadProgress(xhr) {
             const progressBar = document.getElementById('upload-progress-bar');
             const progressText = document.getElementById('upload-progress-text');
             if (!xhr || !xhr.total) return;
-            
+
+            setProgressIndeterminate(false);
             const progress = Math.round((xhr.loaded / xhr.total) * 100);
             if (progressBar) progressBar.style.width = progress + '%';
             if (progressText) progressText.textContent = '加载中... ' + progress + '%';
         }
-        
+
         function handleLoadError(error) {
             console.error('模型加载失败:', error);
             textureFailures = [];
-            
+
             const progressContainer = document.getElementById('upload-progress-container');
             const progressText = document.getElementById('upload-progress-text');
-            
+
+            if (progressContainer) setProgressIndeterminate(false);
             if (progressText) {
                 progressText.textContent = '加载失败: ' + (error && error.message ? error.message : error);
             }
-            
+
             if (progressContainer) {
                 setTimeout(function() {
                     progressContainer.style.display = 'none';
                 }, 3000);
             }
         }
-        
+
         function handleGltfLoaded(gltf) {
             const progressContainer = document.getElementById('upload-progress-container');
             const progressBar = document.getElementById('upload-progress-bar');
             const progressText = document.getElementById('upload-progress-text');
-            
+
+            if (progressContainer) setProgressIndeterminate(false);
             console.log('模型加载成功:', gltf);
             
             // 新模型确认可用后再替换旧模型：既避免了加载失败时把画面清空，
